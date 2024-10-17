@@ -1,17 +1,5 @@
 package com.chaintech.contacts.ui.screen
 
-import android.Manifest
-import android.content.ContentResolver
-import android.content.Context
-import android.content.pm.PackageManager
-import android.database.ContentObserver
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
-import android.provider.ContactsContract
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,8 +21,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,11 +36,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
-import com.chaintech.contacts.ui.ContactHelper
-import com.chaintech.contacts.ui.ContactHelper.fetchContacts
+import com.chaintech.contacts.ContactHelper
+import com.chaintech.contacts.ContactHelper.RequestPermissionExample
+import com.chaintech.contacts.ContactHelper.fetchContacts
+import com.chaintech.contacts.room.table.Contact
+import com.chaintech.contacts.ui.ContactViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -67,68 +59,34 @@ fun ContactScreen() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactListScreen() {
-    val context = LocalContext.current
-    var contacts by remember { mutableStateOf<List<ContactHelper.Contact>>(emptyList()) }
+    val viewModel = viewModel<ContactViewModel>()
 
-    val contentResolver: ContentResolver = context.contentResolver
-    val coroutineScope = rememberCoroutineScope()
-
-    val contactObserver = remember {
-        object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                super.onChange(selfChange)
-                coroutineScope.launch {
-                    contacts = withContext(Dispatchers.IO) {
-                        fetchContacts(context)
-                    }
+    PullToRefreshBox(
+        modifier = Modifier.fillMaxSize(),
+        isRefreshing = viewModel.isRefresh.value,
+        onRefresh = viewModel::setRefresh
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Contacts List") }
+                )
+            }
+        ) { innerPadding ->
+            LazyColumn(
+                contentPadding = innerPadding,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(viewModel.contacts.value.size) { index ->
+                    ContactListItem(contact = viewModel.contacts.value[index])
                 }
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        contentResolver.registerContentObserver(
-            ContactsContract.Contacts.CONTENT_URI,
-            true,
-            contactObserver
-        )
-
-        coroutineScope.launch {
-            contacts = withContext(Dispatchers.IO) {
-                fetchContacts(context)
-            }
-        }
-
-        onDispose {
-            contentResolver.unregisterContentObserver(contactObserver)
-        }
-    }
-    /*LaunchedEffect(Unit) {
-        contacts = withContext(Dispatchers.IO) {
-            fetchContacts(context)
-        }
-    }*/
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Contacts List") }
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            contentPadding = innerPadding,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(contacts.size) {
-                ContactListItem(contact = contacts[it])
             }
         }
     }
 }
 
 @Composable
-fun ContactListItem(contact: ContactHelper.Contact) {
+fun ContactListItem(contact: Contact) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -181,40 +139,4 @@ fun ContactListItem(contact: ContactHelper.Contact) {
         }
     }
 }
-@Composable
-fun RequestPermissionExample(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val permissionState = remember { mutableStateOf(false) }
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        permissionState.value = isGranted
-        if (isGranted) {
-            Toast.makeText(context, "Permission Granted", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    val hasPermission = ContextCompat.checkSelfPermission(
-        context,
-        android.Manifest.permission.READ_CONTACTS
-    ) == PackageManager.PERMISSION_GRANTED
-
-    permissionState.value = hasPermission
-
-    if (permissionState.value) {
-        content()
-    } else {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Button(onClick = { launcher.launch(android.Manifest.permission.READ_CONTACTS) }) {
-                Text("Request Contacts Permission")
-            }
-        }
-    }
-}
