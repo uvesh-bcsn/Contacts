@@ -2,15 +2,20 @@ package com.chaintech.contacts.ui
 
 import android.app.Application
 import android.util.Log
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chaintech.contacts.ContactHelper
 import com.chaintech.contacts.ContactHelper.fetchContacts
 import com.chaintech.contacts.pref.PreferencesManager
 import com.chaintech.contacts.repository.ContactRepository
 import com.chaintech.contacts.room.table.Contact
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -25,10 +30,11 @@ class ContactViewModel @Inject constructor(
     private val app: Application,
     private val contactRepository: ContactRepository
 ) : ViewModel() {
+    private val pref = PreferencesManager(app)
 
-    var contacts = mutableStateOf<List<Contact>>(emptyList())
-
-    val pref = PreferencesManager(app)
+    var alphabeticalContacts = mutableStateOf<List<ContactHelper.AlphabeticalList>>(emptyList())
+    var sliderPosition = mutableFloatStateOf(0f)
+    val listState = LazyListState()
 
     init {
         val newDate = LocalDateTime.now()
@@ -49,7 +55,7 @@ class ContactViewModel @Inject constructor(
 
     fun setRefresh() {
         isRefresh.value = true
-        contacts.value = emptyList()
+        alphabeticalContacts.value = emptyList()
         reFetch().invokeOnCompletion {
             isRefresh.value = false
         }
@@ -63,7 +69,7 @@ class ContactViewModel @Inject constructor(
 
     private fun readContact() {
         contactRepository.readContact().onEach {
-            contacts.value = it
+            alphabeticalContacts.value = createAlphabeticalListState(it)
         }.launchIn(viewModelScope)
     }
 
@@ -76,4 +82,13 @@ class ContactViewModel @Inject constructor(
         val formatter = DateTimeFormatter.ofPattern(pattern)
         return LocalDateTime.parse(dateTimeString, formatter)
     }
+
+    fun createAlphabeticalListState(contacts: List<Contact>): List<ContactHelper.AlphabeticalList> {
+        return contacts
+            .filter { it.name.isNotBlank() }
+            .groupBy { it.name.first().uppercaseChar() }
+            .map { (letter, contacts) -> ContactHelper.AlphabeticalList(letter, contacts) }
+            .sortedBy { it.letter }
+    }
+
 }

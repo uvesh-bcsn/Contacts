@@ -102,4 +102,9 @@ object ContactHelper {
             }
         }
     }
+
+    data class AlphabeticalList(
+        val letter: Char,
+        val contacts: List<Contact>
+    )
 }
