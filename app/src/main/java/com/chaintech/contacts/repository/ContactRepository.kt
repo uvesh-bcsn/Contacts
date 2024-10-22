@@ -11,5 +11,6 @@ class ContactRepository @Inject constructor(
 
     suspend fun clear() = contactDao.clear()
 
-    fun readContact() = contactDao.readContact()
+    fun readContact(limit: Int, offSet: Int) = contactDao.readContact(limit, offSet)
+
 }

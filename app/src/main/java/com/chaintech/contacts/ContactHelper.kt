@@ -61,7 +61,6 @@ object ContactHelper {
             cursor.close()
         }
 
-        contactsList.sortBy { it.name }
         return contactsList
     }
 

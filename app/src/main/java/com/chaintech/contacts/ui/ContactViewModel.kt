@@ -14,8 +14,6 @@ import com.chaintech.contacts.repository.ContactRepository
 import com.chaintech.contacts.room.table.Contact
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -23,7 +21,6 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
-import kotlin.math.log
 
 @HiltViewModel
 class ContactViewModel @Inject constructor(
@@ -35,18 +32,23 @@ class ContactViewModel @Inject constructor(
     var alphabeticalContacts = mutableStateOf<List<ContactHelper.AlphabeticalList>>(emptyList())
     var sliderPosition = mutableFloatStateOf(0f)
     val listState = LazyListState()
+    var count = 0
+    var isPaginate = false
 
     init {
         val newDate = LocalDateTime.now()
         val defaultTime = newDate.minusHours(7)
-        val date = stringToLocalDateTime(pref.getData("fetchTime", localDateTimeToString(defaultTime)))
+        val date =
+            stringToLocalDateTime(pref.getData("fetchTime", localDateTimeToString(defaultTime)))
         val duration = Duration.between(date, newDate).toHours()
 
         if (duration > 6) {
             pref.saveData("fetchTime", localDateTimeToString(LocalDateTime.now()))
             reFetch()
         } else {
-            readContact()
+            viewModelScope.launch(Dispatchers.IO) {
+                readContact()
+            }
         }
     }
 
@@ -67,28 +69,41 @@ class ContactViewModel @Inject constructor(
         readContact()
     }
 
+
     private fun readContact() {
-        contactRepository.readContact().onEach {
-            alphabeticalContacts.value = createAlphabeticalListState(it)
-        }.launchIn(viewModelScope)
+        val contacts = contactRepository.readContact(limit = 50, offSet = alphabeticalContacts.value.flatMap { it.contacts }.size)
+        alphabeticalContacts.value += createAlphabeticalListState(contacts)
+
+        alphabeticalContacts.value = createAlphabeticalListState(alphabeticalContacts.value.flatMap { it.contacts })
+
+        Log.d("TAG_contacts", "readContact: ${alphabeticalContacts.value.flatMap { it.contacts }.size}")
+        isPaginate = contacts.size == 50
+        if (isPaginate) {
+            readContact()
+        }
     }
 
-    private fun localDateTimeToString(dateTime: LocalDateTime, pattern: String = "yyyy-MM-dd HH:mm:ss"): String {
+    private fun localDateTimeToString(
+        dateTime: LocalDateTime,
+        pattern: String = "yyyy-MM-dd HH:mm:ss"
+    ): String {
         val formatter = DateTimeFormatter.ofPattern(pattern)
         return dateTime.format(formatter)
     }
 
-    private fun stringToLocalDateTime(dateTimeString: String, pattern: String = "yyyy-MM-dd HH:mm:ss"): LocalDateTime {
+    private fun stringToLocalDateTime(
+        dateTimeString: String,
+        pattern: String = "yyyy-MM-dd HH:mm:ss"
+    ): LocalDateTime {
         val formatter = DateTimeFormatter.ofPattern(pattern)
         return LocalDateTime.parse(dateTimeString, formatter)
     }
 
-    fun createAlphabeticalListState(contacts: List<Contact>): List<ContactHelper.AlphabeticalList> {
+    private fun createAlphabeticalListState(contacts: List<Contact>): List<ContactHelper.AlphabeticalList> {
         return contacts
             .filter { it.name.isNotBlank() }
             .groupBy { it.name.first().uppercaseChar() }
             .map { (letter, contacts) -> ContactHelper.AlphabeticalList(letter, contacts) }
             .sortedBy { it.letter }
     }
-
 }

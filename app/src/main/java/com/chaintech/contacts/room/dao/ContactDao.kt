@@ -16,6 +16,7 @@ interface ContactDao {
     @Query("DELETE FROM Contact")
     suspend fun clear()
 
-    @Query("SELECT * FROM Contact")
-    fun readContact(): Flow<List<Contact>>
+    @Query("SELECT * FROM Contact ORDER BY name ASC LIMIT :limit OFFSET :offSet")
+    fun readContact(limit: Int, offSet: Int): List<Contact>
+
 }

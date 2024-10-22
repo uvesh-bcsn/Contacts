@@ -1,65 +1,54 @@
-@file:OptIn(ExperimentalFoundationApi::class)
 
 package com.chaintech.contacts.ui.screen
 
-import android.util.Log
-import androidx.compose.foundation.ExperimentalFoundationApi
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat.startActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.chaintech.contacts.ContactHelper.RequestPermissionExample
 import com.chaintech.contacts.room.table.Contact
 import com.chaintech.contacts.ui.ContactViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ContactScreen() {
@@ -71,6 +60,7 @@ fun ContactScreen() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactListScreen() {
+    val scope = rememberCoroutineScope()
     val viewModel = viewModel<ContactViewModel>()
 
     PullToRefreshBox(
@@ -81,20 +71,25 @@ fun ContactListScreen() {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Contacts List") }
+                    title = { Text("Contacts") },
+                    actions = {
+                        Text("Count: " + viewModel.alphabeticalContacts.value.flatMap { it.contacts }.size.toString())
+                    }
                 )
             }
         ) { innerPadding ->
-            Box(
-                Modifier
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()
             ) {
                 LazyColumn(
                     state = viewModel.listState,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(end = 30.dp)
+                        .fillMaxHeight()
+                        .weight(1f)
+                        .padding(end = 20.dp)
                 ) {
                     items(viewModel.alphabeticalContacts.value.size) { index ->
                         Box {
@@ -113,76 +108,32 @@ fun ContactListScreen() {
                     }
                 }
 
-                val interaction = remember { MutableInteractionSource() }
-                val isDragging by interaction.collectIsDraggedAsState()
                 val alphabet = viewModel.alphabeticalContacts.value.map { it.letter }
-
-                /*LaunchedEffect(viewModel.listState) {
-                    snapshotFlow { viewModel.listState.firstVisibleItemIndex }
-                        .collect {
-                            viewModel.sliderPosition.floatValue = it.toFloat()
-                        }
-                }*/
 
                 LaunchedEffect(viewModel.sliderPosition.floatValue) {
                     viewModel.listState.scrollToItem(viewModel.sliderPosition.floatValue.toInt())
                 }
-                Slider(
-                    interactionSource = interaction,
-                    value = viewModel.sliderPosition.floatValue,
-                    onValueChange = {
-                        viewModel.sliderPosition.floatValue = it
-                    },
-                    valueRange = 0f..(if (alphabet.size > 0) alphabet.size.toFloat() - 1 else 0f),
-                    track = {
-                        Box(
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    alphabet.forEach { char ->
+                        Text(
+                            text = char.toString(),
+                            textAlign = TextAlign.Center,
+                            fontSize = 14.sp,
                             modifier = Modifier
-                                .offset(y = -3.dp)
-                                .height(10.dp)
-                                .background(Color.LightGray)
-                                .fillMaxWidth()
+                                .size(21.dp)
+                                .clickable {
+                                    val findPosition =
+                                        viewModel.alphabeticalContacts.value.indexOfFirst { it.letter == char }
+                                    scope.launch {
+                                        viewModel.listState.scrollToItem(findPosition)
+                                    }
+                                }
                         )
-                    },
-                    thumb = {
-                        if (isDragging) {
-                            Box(
-                                modifier = Modifier
-                                    .offset(y = 40.dp)
-                                    .size(50.dp)
-                                    .background(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = RoundedCornerShape(
-                                            topStart = 15.dp,
-                                            topEnd = 0.dp,
-                                            bottomStart = 15.dp,
-                                            bottomEnd = 15.dp
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = alphabet[viewModel.sliderPosition.floatValue.toInt()].toString(),
-                                    color = Color.White,
-                                    modifier = Modifier.rotate(270f)
-                                )
-                            }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .background(color = Color.Black, shape = RoundedCornerShape(3.dp))
-                                .height(10.dp)
-                                .width(50.dp)
-                        )
-                    },
-                    modifier = Modifier
-//                        .background(Color.Blue)
-                        .graphicsLayer {
-                            rotationZ = 90f
-                            translationX = (this.size.width / 2) * 0.97f
-                        }
-                        .align(Alignment.CenterEnd)
-//                        .background(Color.LightGray)
-                )
+                    }
+                }
             }
         }
     }
