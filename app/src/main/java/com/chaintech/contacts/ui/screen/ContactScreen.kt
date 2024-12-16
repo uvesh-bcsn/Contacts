@@ -3,6 +3,8 @@ package com.chaintech.contacts.ui.screen
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

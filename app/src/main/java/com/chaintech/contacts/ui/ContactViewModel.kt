@@ -32,7 +32,6 @@ class ContactViewModel @Inject constructor(
     var alphabeticalContacts = mutableStateOf<List<ContactHelper.AlphabeticalList>>(emptyList())
     var sliderPosition = mutableFloatStateOf(0f)
     val listState = LazyListState()
-    var count = 0
     var isPaginate = false
 
     init {
@@ -76,7 +75,7 @@ class ContactViewModel @Inject constructor(
 
         alphabeticalContacts.value = createAlphabeticalListState(alphabeticalContacts.value.flatMap { it.contacts })
 
-        Log.d("TAG_contacts", "readContact: ${alphabeticalContacts.value.flatMap { it.contacts }.size}")
+        //Log.d("TAG_contacts", "readContact: ${alphabeticalContacts.value.flatMap { it.contacts }.size}")
         isPaginate = contacts.size == 50
         if (isPaginate) {
             readContact()
